@@ -9,30 +9,19 @@ import os
 model_name = os.getenv("MODEL", "gpt-3.5-turbo")
 MODEL = LiteLlm(model=model_name)
 
-# --- 1) 需求解析智能体：提取结构化要点，写入 state['req_items'] ---
 current_dir = os.path.dirname(__file__)
-with open(os.path.join(current_dir, "prompts", "01需求解析.md"), "r", encoding="utf-8") as f:
-    req_parse_prompt = f.read()
-req_parse = LlmAgent(
-    name="ReqParse",
-    model=MODEL,
-    description="从用户给的自然语言需求中提取结构化需求清单",
-    instruction=req_parse_prompt,
-    output_key="req_items",  # 自动把最终输出写到 session.state['req_items']
-)
-
-# --- 2) 需求挖掘智能体：补全/扩展需求 ---
+# --- 需求挖掘智能体（合并解析功能）：负责首轮结构化与迭代完善 ---
 with open(os.path.join(current_dir, "prompts", "02需求挖掘.md"), "r", encoding="utf-8") as f:
     req_explore_prompt = f.read()
 req_explore = LlmAgent(
     name="ReqExplore",
     model=MODEL,
-    description="基于当前清单做补全与细化",
+    description="从零开始提取需求并基于澄清评分迭代补全与细化",
     instruction=req_explore_prompt,
     output_key="req_items",  # 用同一个 key 迭代更新
 )
 
-# --- 3) 需求澄清智能体：调用工具打分并给出改进建议（写入 state） ---
+# --- 需求澄清智能体：调用工具打分并给出改进建议（写入 state） ---
 with open(os.path.join(current_dir, "reference_srs", "2009 - library.doc.md"), "r", encoding="utf-8") as f:
     reference_srs = f.read()
 with open(os.path.join(current_dir, "prompts", "03需求澄清.md"), "r", encoding="utf-8") as f:
@@ -67,9 +56,9 @@ improve_loop = LoopAgent(
     max_iterations=5,
 )
 
-# --- 管道：解析 -> 多轮改进 -> 生成 ---
+# --- 管道：多轮改进 -> 生成 ---
 root_agent = SequentialAgent(
     name="SRS_Pipeline",
     description="从需求描述到 SRS 的端到端流程",
-    sub_agents=[req_parse, improve_loop, doc_generate],
+    sub_agents=[improve_loop, doc_generate],
 )
