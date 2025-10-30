@@ -5,10 +5,13 @@ from google.adk.events import Event, EventActions
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.models.lite_llm import LiteLlm
 import os
-MODEL = LiteLlm(model=os.getenv("MODEL"))
+# 从环境变量获取模型，如果未设置则使用默认值
+model_name = os.getenv("MODEL", "gpt-3.5-turbo")
+MODEL = LiteLlm(model=model_name)
 
 # --- 1) 需求解析智能体：提取结构化要点，写入 state['req_items'] ---
-with open("01需求解析.md", "r", encoding="utf-8") as f:
+current_dir = os.path.dirname(__file__)
+with open(os.path.join(current_dir, "prompts", "01需求解析.md"), "r", encoding="utf-8") as f:
     req_parse_prompt = f.read()
 req_parse = LlmAgent(
     name="ReqParse",
@@ -19,7 +22,7 @@ req_parse = LlmAgent(
 )
 
 # --- 2) 需求挖掘智能体：补全/扩展需求 ---
-with open("02需求挖掘.md", "r", encoding="utf-8") as f:
+with open(os.path.join(current_dir, "prompts", "02需求挖掘.md"), "r", encoding="utf-8") as f:
     req_explore_prompt = f.read()
 req_explore = LlmAgent(
     name="ReqExplore",
@@ -30,8 +33,14 @@ req_explore = LlmAgent(
 )
 
 # --- 3) 需求澄清智能体：调用工具打分并给出改进建议（写入 state） ---
-with open("02需求澄清.md", "r", encoding="utf-8") as f:
+with open(os.path.join(current_dir, "reference_srs", "2009 - library.doc.md"), "r", encoding="utf-8") as f:
+    reference_srs = f.read()
+with open(os.path.join(current_dir, "prompts", "03需求澄清.md"), "r", encoding="utf-8") as f:
     req_clarify_prompt = f.read()
+
+# 将 reference_srs 变量注入到 prompt 中
+req_clarify_prompt = req_clarify_prompt.replace("{reference_srs}", reference_srs)
+
 req_clarify = LlmAgent(
     name="ReqClarify",
     model=MODEL,
@@ -41,7 +50,7 @@ req_clarify = LlmAgent(
 )
 
 # --- 4) 文档生成智能体：把最终清单转为 SRS 完整文档 ---
-with open("04文档生成.md", "r", encoding="utf-8") as f:
+with open(os.path.join(current_dir, "prompts", "04文档生成.md"), "r", encoding="utf-8") as f:
     doc_generate_prompt = f.read()
 doc_generate = LlmAgent(
     name="DocGenerate",
